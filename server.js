@@ -90,7 +90,12 @@ let reconnectTimer = null;
 let messageCount = 0;
 
 function connectAIS() {
-  if (ws && ws.readyState === WebSocket.OPEN) return;
+  // Clear any pending reconnect
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  // Don't reconnect if already open or connecting
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  // Clean up old socket
+  if (ws) { try { ws.terminate(); } catch(e) {} ws = null; }
 
   console.log('[AIS] Connecting to AISStream...');
   ws = new WebSocket('wss://stream.aisstream.io/v0/stream');
@@ -252,4 +257,12 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`[Maritime] Listening on port ${PORT}`);
   connectAIS();
+
+  // Watchdog: check WS health every 30s, force reconnect if dead
+  setInterval(() => {
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+      console.log('[AIS] Watchdog: WS dead, reconnecting...');
+      connectAIS();
+    }
+  }, 30000);
 });
