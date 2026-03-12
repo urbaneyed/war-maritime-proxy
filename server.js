@@ -16,8 +16,8 @@ app.use(cors({
 
 // ── Vessel cache (MMSI → latest position) ──
 const vessels = new Map();
-const VESSEL_TTL = 600000; // 10 min — drop stale vessels
-const MAX_VESSELS = 500;
+const VESSEL_TTL = 1800000; // 30 min — keep vessels longer for better coverage
+const MAX_VESSELS = 2000;
 
 // ── Bounding boxes: Strait of Hormuz + Persian Gulf + Gulf of Oman ──
 const BOUNDING_BOXES = [
