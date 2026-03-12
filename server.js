@@ -124,6 +124,7 @@ function countryFromMMSI(mmsi) {
 // ── Connect to AISStream WebSocket ──
 let ws = null;
 let reconnectTimer = null;
+let pingTimer = null;
 let messageCount = 0;
 
 function connectAIS() {
@@ -144,6 +145,13 @@ function connectAIS() {
       BoundingBoxes: BOUNDING_BOXES,
       FilterMessageTypes: ['PositionReport', 'ShipStaticData', 'StandardClassBPositionReport']
     }));
+    // Keepalive ping every 20s to prevent Hostinger/proxy from killing idle WS
+    if (pingTimer) clearInterval(pingTimer);
+    pingTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.ping();
+      }
+    }, 20000);
   });
 
   ws.on('message', (raw) => {
@@ -207,8 +215,9 @@ function connectAIS() {
   });
 
   ws.on('close', (code, reason) => {
-    console.log('[AIS] Disconnected. Code:', code, 'Reason:', reason?.toString() || 'none', '— Reconnecting in 10s...');
-    reconnectTimer = setTimeout(connectAIS, 10000);
+    if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+    console.log('[AIS] Disconnected. Code:', code, 'Reason:', reason?.toString() || 'none', '— Reconnecting in 5s...');
+    reconnectTimer = setTimeout(connectAIS, 5000);
   });
 
   ws.on('error', (err) => {
