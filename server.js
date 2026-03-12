@@ -1,12 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const WebSocket = require('ws');
+const fs = require('fs');
+const path = require('path');
 
 const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.AISSTREAM_API_KEY || '034a5437399dd60d299c01ae1b7ec89920a4014f';
 const PROXY_SECRET = process.env.PROXY_SECRET || 'war-maritime-2026';
+const CACHE_FILE = path.join(__dirname, '.vessel-cache.json');
 
 // CORS — allow war.direct + localhost
 app.use(cors({
@@ -18,6 +21,40 @@ app.use(cors({
 const vessels = new Map();
 const VESSEL_TTL = 1800000; // 30 min — keep vessels longer for better coverage
 const MAX_VESSELS = 2000;
+
+// ── Persistent cache: save to disk every 60s, load on startup ──
+function loadCache() {
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+      const now = Date.now();
+      let loaded = 0;
+      for (const [mmsi, v] of Object.entries(data)) {
+        // Only load vessels fresher than TTL
+        if (v.updated && (now - v.updated) < VESSEL_TTL) {
+          vessels.set(mmsi, v);
+          loaded++;
+        }
+      }
+      console.log(`[Cache] Loaded ${loaded} vessels from disk cache`);
+    }
+  } catch (e) {
+    console.error('[Cache] Failed to load:', e.message);
+  }
+}
+
+function saveCache() {
+  try {
+    const obj = {};
+    for (const [mmsi, v] of vessels) obj[mmsi] = v;
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(obj));
+  } catch (e) {
+    console.error('[Cache] Failed to save:', e.message);
+  }
+}
+
+// Load cached vessels immediately on startup
+loadCache();
 
 // ── Bounding boxes: Strait of Hormuz + Persian Gulf + Gulf of Oman ──
 const BOUNDING_BOXES = [
@@ -265,4 +302,11 @@ app.listen(PORT, () => {
       connectAIS();
     }
   }, 30000);
+
+  // Save vessel cache to disk every 60s
+  setInterval(saveCache, 60000);
 });
+
+// Save cache on graceful shutdown
+process.on('SIGINT', () => { saveCache(); process.exit(); });
+process.on('SIGTERM', () => { saveCache(); process.exit(); });
