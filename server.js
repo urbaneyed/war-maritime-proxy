@@ -56,9 +56,12 @@ function saveCache() {
 // Load cached vessels immediately on startup
 loadCache();
 
-// ── Bounding boxes: Strait of Hormuz + Persian Gulf + Gulf of Oman ──
+// ── Bounding boxes: Full Middle East maritime theater ──
 const BOUNDING_BOXES = [
-  [[23.5, 51.0], [30.0, 60.0]]  // Wide coverage: Persian Gulf + Strait + Gulf of Oman
+  [[23.0, 47.0], [31.0, 60.0]],  // Persian Gulf + Strait of Hormuz
+  [[20.0, 56.0], [26.5, 65.0]],  // Gulf of Oman + Arabian Sea (north)
+  [[11.0, 41.0], [16.0, 46.0]],  // Bab el-Mandeb / Gulf of Aden
+  [[12.0, 32.0], [30.0, 44.0]],  // Red Sea
 ];
 
 // ── Ship type mapping (AIS type codes → human labels) ──
@@ -169,9 +172,8 @@ function connectAIS() {
       // Update position from PositionReport / StandardClassBPositionReport
       const posMsg = msg.Message?.PositionReport || msg.Message?.StandardClassBPositionReport;
       if (posMsg) {
-        // Filter garbage AIS data (speed > 50kn is noise)
-        const speed = posMsg.Sog || 0;
-        if (speed > 50) return;
+        // Clamp garbage speed (>50kn) to 0 instead of dropping the vessel
+        const speed = Math.min(posMsg.Sog || 0, 50);
 
         existing.mmsi = mmsi;
         existing.lat = meta.latitude;
