@@ -119,11 +119,15 @@ function connectAIS() {
       // Update position from PositionReport / StandardClassBPositionReport
       const posMsg = msg.Message?.PositionReport || msg.Message?.StandardClassBPositionReport;
       if (posMsg) {
+        // Filter garbage AIS data (speed > 50kn is noise)
+        const speed = posMsg.Sog || 0;
+        if (speed > 50) return;
+
         existing.mmsi = mmsi;
         existing.lat = meta.latitude;
         existing.lon = meta.longitude;
         existing.heading = posMsg.TrueHeading !== 511 ? posMsg.TrueHeading : (posMsg.Cog || 0);
-        existing.speed = posMsg.Sog || 0;
+        existing.speed = speed;
         existing.course = posMsg.Cog || 0;
         existing.navStatus = posMsg.NavigationalStatus;
         existing.updated = Date.now();
