@@ -5,7 +5,7 @@ const WebSocket = require('ws');
 const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3001;
-const API_KEY = process.env.AISSTREAM_API_KEY;
+const API_KEY = process.env.AISSTREAM_API_KEY || '034a5437399dd60d299c01ae1b7ec89920a4014f';
 const PROXY_SECRET = process.env.PROXY_SECRET || 'war-maritime-2026';
 
 // CORS — allow war.direct + localhost
@@ -160,14 +160,14 @@ function connectAIS() {
     }
   });
 
-  ws.on('close', () => {
-    console.log('[AIS] Disconnected. Reconnecting in 10s...');
+  ws.on('close', (code, reason) => {
+    console.log('[AIS] Disconnected. Code:', code, 'Reason:', reason?.toString() || 'none', '— Reconnecting in 10s...');
     reconnectTimer = setTimeout(connectAIS, 10000);
   });
 
   ws.on('error', (err) => {
     console.error('[AIS] Error:', err.message);
-    ws.close();
+    try { ws.close(); } catch(e) {}
   });
 }
 
@@ -228,6 +228,18 @@ app.get('/stats', checkAuth, (req, res) => {
     vessels_cached: vessels.size,
     messages_received: messageCount,
     ws_state: ws ? ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][ws.readyState] : 'NONE',
+    uptime: Math.floor(process.uptime())
+  });
+});
+
+// GET /health — public health check
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    api_key_set: !!API_KEY,
+    api_key_preview: API_KEY ? API_KEY.substring(0, 6) + '...' : 'MISSING',
+    ws_state: ws ? ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][ws.readyState] : 'NONE',
+    vessels: vessels.size,
     uptime: Math.floor(process.uptime())
   });
 });
